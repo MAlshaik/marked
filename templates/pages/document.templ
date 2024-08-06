@@ -180,7 +180,6 @@ templ DocumentPage(document models.Document) {
             ws.onerror = function(err) {
                 console.error('WebSocket error:', err);
                 updateSaveIndicator("Error");
-                ws.close();
             };
 
             ws.onmessage = function(event) {
@@ -190,9 +189,7 @@ templ DocumentPage(document models.Document) {
                     if (data.content !== easymde.value()) {
                         easymde.value(data.content);
                     }
-                } else if (data.type === "saved") {
-                    lastSavedContent = { title: data.title, content: data.content };
-                    updateSaveIndicator("Saved");
+                    updateSaveIndicator("Updated from server");
                 }
             };
         }
@@ -208,16 +205,15 @@ templ DocumentPage(document models.Document) {
 
         function sendUpdate(isSave = false) {
             const currentContent = { title: titleInput.value, content: easymde.value() };
-            if (ws.readyState === WebSocket.OPEN) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
                 isLocalUpdate = true;
                 ws.send(JSON.stringify({ 
                     type: isSave ? "save" : "update", 
-                    ...currentContent 
+                    title: currentContent.title,
+                    content: currentContent.content
                 }));
                 setTimeout(() => { isLocalUpdate = false; }, 50); // Reset after a short delay
-                if (!isSave) {
-                    updateSaveIndicator("Editing...");
-                }
+                updateSaveIndicator(isSave ? "Saving..." : "Updating...");
             } else {
                 console.log('WebSocket is not open. Attempting to reconnect...');
                 updateSaveIndicator("Reconnecting...");
@@ -227,7 +223,6 @@ templ DocumentPage(document models.Document) {
 
         const debouncedSave = debounce(() => {
             sendUpdate(true);
-            updateSaveIndicator("Saving...");
         }, 2000); // 2 seconds delay for saving
 
         titleInput.addEventListener("input", () => {
@@ -251,6 +246,7 @@ templ DocumentPage(document models.Document) {
         }
     })();
 </script>
+        
         
     }
 }

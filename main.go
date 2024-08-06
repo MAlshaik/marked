@@ -1,91 +1,99 @@
 package main
 
 import (
-	"database/sql"
-	"encoding/json"
-	"fmt"
-	"log"
-	"net/http"
-	"os"
-	"strings"
-	"sync"
-	"time"
+    "database/sql"
+    "fmt"
+    "log"
+    "net/http"
+    "os"
+    "strings"
+    "sync"
+    "time"
 
-	"github.com/MAlshaik/marked/handlers"
-	"github.com/gorilla/websocket"
-	_ "github.com/lib/pq"
+    "github.com/MAlshaik/marked/handlers"
+    "github.com/gorilla/websocket"
+    _ "github.com/lib/pq"
 )
 
 var (
-	db           *sql.DB
-	upgrader     = websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin: func(r *http.Request) bool {
-			return true // Be cautious with this in production
-		},
-	}
-	clients       = make(map[*websocket.Conn]bool)
-	clientsMutex  sync.Mutex
+    db           *sql.DB
+    upgrader     = websocket.Upgrader{
+        ReadBufferSize:  1024,
+        WriteBufferSize: 1024,
+        CheckOrigin: func(r *http.Request) bool {
+            return true // Be cautious with this in production
+        },
+    }
+    clients       = make(map[*websocket.Conn]bool)
+    clientsMutex  sync.Mutex
+    broadcast     = make(chan Message)
 )
 
+type Message struct {
+    Type    string `json:"type"`
+    Title   string `json:"title"`
+    Content string `json:"content"`
+}
+
 func main() {
-	fmt.Println("Connecting to Postgres...")
+    fmt.Println("Connecting to Postgres...")
 
-	postgresURL := os.Getenv("POSTGRES_URL")
+    postgresURL := os.Getenv("POSTGRES_URL")
 
-	log.Println("Attempting to connect to database...")
-	var err error
-	db, err = sql.Open("postgres", postgresURL)
-	if err != nil {
-		log.Fatal("Error opening database connection: ", err)
-	}
-	defer db.Close()
+    log.Println("Attempting to connect to database...")
+    var err error
+    db, err = sql.Open("postgres", postgresURL)
+    if err != nil {
+        log.Fatal("Error opening database connection: ", err)
+    }
+    defer db.Close()
 
-	err = db.Ping()
-	if err != nil {
-		log.Fatal("Error pinging database: ", err)
-	}
-	log.Println("Successfully connected to database")
+    err = db.Ping()
+    if err != nil {
+        log.Fatal("Error pinging database: ", err)
+    }
+    log.Println("Successfully connected to database")
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8000" // fallback to 8000 if not set
-	}
+    port := os.Getenv("PORT")
+    if port == "" {
+        port = "8000" // fallback to 8000 if not set
+    }
 
-	app := http.NewServeMux()
+    app := http.NewServeMux()
 
-	app.HandleFunc("GET /", handlers.HandleRoot(db))
-	app.HandleFunc("GET /create", handlers.CreateDocument(db))
-	app.HandleFunc("GET /document/{id}", handlers.GetDocument(db))
-	app.HandleFunc("POST /document/{id}", handlers.UpdateDocument(db))
-	app.HandleFunc("POST /document/{id}/delete", handlers.DeleteDocument(db))
-	app.HandleFunc("GET /static/", serveStatic)
+    app.HandleFunc("GET /", handlers.HandleRoot(db))
+    app.HandleFunc("GET /create", handlers.CreateDocument(db))
+    app.HandleFunc("GET /document/{id}", handlers.GetDocument(db))
+    app.HandleFunc("POST /document/{id}", handlers.UpdateDocument(db))
+    app.HandleFunc("POST /document/{id}/delete", handlers.DeleteDocument(db))
+    app.HandleFunc("GET /static/", serveStatic)
 
-	app.HandleFunc("GET /ws/{id}", handleWebSocket)
+    app.HandleFunc("GET /ws/{id}", handleWebSocket)
 
-	app.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
+    app.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(http.StatusOK)
+        w.Write([]byte("OK"))
+    })
 
-	log.Println("Server starting...")
-	log.Println("Listening on port:", port)
-	log.Fatal(http.ListenAndServe(":"+port, app))
+    go handleMessages()
+
+    log.Println("Server starting...")
+    log.Println("Listening on port:", port)
+    log.Fatal(http.ListenAndServe(":"+port, app))
 }
 
 func serveStatic(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path[len("/static/"):]
-	if strings.HasSuffix(path, "/") {
-		http.NotFound(w, r)
-		return
-	}
-	http.ServeFile(w, r, "./static/"+path)
+    path := r.URL.Path[len("/static/"):]
+    if strings.HasSuffix(path, "/") {
+        http.NotFound(w, r)
+        return
+    }
+    http.ServeFile(w, r, "./static/"+path)
 }
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
     documentID := r.URL.Path[len("/ws/"):]
-    
+
     conn, err := upgrader.Upgrade(w, r, nil)
     if err != nil {
         log.Println("Error upgrading to WebSocket:", err)
@@ -120,79 +128,42 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
     clientsMutex.Unlock()
 
     for {
-        messageType, p, err := conn.ReadMessage()
+        var msg Message
+        err := conn.ReadJSON(&msg)
         if err != nil {
             log.Println("Error reading message:", err)
+            clientsMutex.Lock()
+            delete(clients, conn)
+            clientsMutex.Unlock()
             break
         }
 
-        var message struct {
-            Type    string `json:"type"`
-            Title   string `json:"title"`
-            Content string `json:"content"`
-        }
-        err = json.Unmarshal(p, &message)
-        if err != nil {
-            log.Println("Error unmarshaling message:", err)
-            continue
-        }
+        msg.Type = "update" // Ensure type is set for broadcasting
+        broadcast <- msg
 
-        if message.Type == "update" {
-            // Only broadcast to other clients
-            broadcastMessageExcept(messageType, p, conn)
-        } else if message.Type == "save" {
+        if msg.Type == "save" {
             // Update the document in the database
-            _, err = db.Exec("UPDATE documents SET title = $1, content = $2 WHERE id = $3", message.Title, message.Content, documentID)
+            _, err = db.Exec("UPDATE documents SET title = $1, content = $2 WHERE id = $3", msg.Title, msg.Content, documentID)
             if err != nil {
                 log.Println("Error updating document in database:", err)
                 continue
             }
-
-            // Broadcast a 'saved' message to all clients
-            savedMsg, _ := json.Marshal(struct {
-                Type    string `json:"type"`
-                Title   string `json:"title"`
-                Content string `json:"content"`
-            }{
-                Type:    "saved",
-                Title:   message.Title,
-                Content: message.Content,
-            })
-            broadcastMessage(websocket.TextMessage, savedMsg)
         }
     }
-
-    clientsMutex.Lock()
-    delete(clients, conn)
-    clientsMutex.Unlock()
 }
 
-func broadcastMessageExcept(messageType int, message []byte, except *websocket.Conn) {
-    clientsMutex.Lock()
-    defer clientsMutex.Unlock()
-
-    for client := range clients {
-        if client != except {
-            err := client.WriteMessage(messageType, message)
+func handleMessages() {
+    for {
+        msg := <-broadcast
+        clientsMutex.Lock()
+        for client := range clients {
+            err := client.WriteJSON(msg)
             if err != nil {
                 log.Printf("Error broadcasting message: %v", err)
                 client.Close()
                 delete(clients, client)
             }
         }
-    }
-}
-
-func broadcastMessage(messageType int, message []byte) {
-    clientsMutex.Lock()
-    defer clientsMutex.Unlock()
-
-    for client := range clients {
-        err := client.WriteMessage(messageType, message)
-        if err != nil {
-            log.Printf("Error broadcasting message: %v", err)
-            client.Close()
-            delete(clients, client)
-        }
+        clientsMutex.Unlock()
     }
 }
