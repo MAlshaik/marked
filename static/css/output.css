@@ -861,6 +861,10 @@ body {
   background-color: hsl(var(--accent));
 }
 
+.hover\:bg-primary\/90:hover {
+  background-color: hsl(var(--primary) / 0.9);
+}
+
 .hover\:text-accent-foreground:hover {
   color: hsl(var(--accent-foreground));
 }
