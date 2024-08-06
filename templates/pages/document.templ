@@ -1,0 +1,256 @@
+package pages
+
+import "github.com/MAlshaik/marked/models"
+import "github.com/MAlshaik/marked/templates/layouts"
+
+templ DocumentPage(document models.Document) {
+    @layouts.Base() {
+        <div class="mx-auto">
+            <div class="flex justify-between items-center pb-4 pt-2">
+                <div class="flex items-center gap-2">
+                        <button 
+                            onclick="toggleDarkMode()"
+                            class="p-2 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 inline-flex items-center justify-center"
+                            aria-label="Toggle dark mode"
+                        >
+                            <svg id="sun-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                                <circle cx="12" cy="12" r="5"></circle>
+                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                <line x1="1" y1="12" x2="3" y2="12"></line>
+                                <line x1="21" y1="12" x2="23" y2="12"></line>
+                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                            </svg>
+                            <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden w-5 h-5">
+                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                            </svg>
+                        </button>
+                        <a href="/create" class="p-2 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 inline-flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                        </a>
+                    </div>
+                <div class="flex items-center">
+                    <input 
+                        type="text" 
+                        id="shareUrl" 
+                        readonly
+                        class="bg-background border border-input text-foreground rounded-l-md px-3 py-2 focus:outline-none"
+                    />
+                    <button 
+                        onclick="copyUrl()"
+                        class="bg-foreground text-background px-3 py-2 rounded-r-md hover:bg-accent"
+                    >
+                        Copy
+                    </button>
+                </div>
+                </div>
+            <div class="flex justify-center">
+                <div class="w-full">
+                    <form id="documentForm">
+                        <div class="mb-4">
+                            <input type="text" id="title" name="title" value={document.Title}
+                                   class="w-full p-2 text-3xl font-semibold focus:ring-background focus:border-background bg-background outline-none appearance-none text-foreground"/>
+                        </div>
+                        <div class="mb-4">
+                            <textarea id="content" name="content" class="bg-background">{document.Content}</textarea>
+                        </div>
+                    </form>
+                    <div id="saveIndicator" class="text-sm text-foreground/80 mt-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
+
+        <style>
+            /* Override EasyMDE styles to match parent background */
+            .EasyMDEContainer {
+                background-color: inherit;
+            }
+            .EasyMDEContainer .CodeMirror {
+                background-color: inherit;
+                color: inherit;
+                border: none !important;
+
+            }
+            .EasyMDEContainer .CodeMirror-cursor {
+                border-left: 1px solid hsl(var(--foreground));
+            }
+            .EasyMDEContainer .CodeMirror-selected {
+                background: hsl(var(--secondary));
+            }
+            .EasyMDEContainer .CodeMirror-line {
+                color: inherit;
+            }
+            .EasyMDEContainer .editor-toolbar {
+                display: none;
+            }
+            .EasyMDEContainer .editor-preview {
+                background-color: inherit;
+                color: inherit;
+            }
+            .EasyMDEContainer .CodeMirror-scroll {
+                min-height: 80vh;
+            }
+        </style>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
+        
+
+        <script>
+    function toggleDarkMode() {
+        const html = document.documentElement;
+        const sunIcon = document.getElementById('sun-icon');
+        const moonIcon = document.getElementById('moon-icon');
+
+        html.classList.toggle('dark');
+        const isDark = html.classList.contains('dark');
+        localStorage.setItem('darkMode', isDark);
+
+        sunIcon.classList.toggle('hidden', isDark);
+        moonIcon.classList.toggle('hidden', !isDark);
+    }
+
+    // Check for saved dark mode preference
+    if (localStorage.getItem('darkMode') === 'true') {
+        document.documentElement.classList.add('dark');
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('sun-icon').classList.add('hidden');
+            document.getElementById('moon-icon').classList.remove('hidden');
+        });
+    }
+
+    const shareUrlInput = document.getElementById('shareUrl');
+    shareUrlInput.value = window.location.href;
+
+    function copyUrl() {
+        const urlInput = document.getElementById('shareUrl');
+        urlInput.select();
+        document.execCommand('copy');
+        alert('URL copied to clipboard!');
+    }
+
+    (function() {
+        const titleInput = document.getElementById("title");
+        const contentInput = document.getElementById("content");
+        const saveIndicator = document.getElementById("saveIndicator");
+
+        let saveTimeout;
+        let lastSavedContent = { title: titleInput.value, content: contentInput.value };
+        let ws;
+        let isLocalUpdate = false;
+
+        const easymde = new EasyMDE({
+            element: contentInput,
+            spellChecker: false,
+            autosave: {
+                enabled: false
+            },
+            toolbar: false,
+            status: false,
+            placeholder: "Start typing here...",
+        });
+
+        function updateSaveIndicator(status) {
+            saveIndicator.textContent = status;
+        }
+
+        function setupWebSocket() {
+            const path = window.location.pathname;
+            const documentID = path.split('/').pop();
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws/${documentID}`);
+
+            ws.onopen = function() {
+                console.log('WebSocket connection established');
+                updateSaveIndicator("Connected");
+            };
+
+            ws.onclose = function(e) {
+                console.log('WebSocket connection closed:', e.reason);
+                updateSaveIndicator("Disconnected");
+                setTimeout(setupWebSocket, 1000); // Attempt to reconnect after 1 second
+            };
+
+            ws.onerror = function(err) {
+                console.error('WebSocket error:', err);
+                updateSaveIndicator("Error");
+                ws.close();
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                if (data.type === "update" && !isLocalUpdate) {
+                    titleInput.value = data.title;
+                    if (data.content !== easymde.value()) {
+                        easymde.value(data.content);
+                    }
+                } else if (data.type === "saved") {
+                    lastSavedContent = { title: data.title, content: data.content };
+                    updateSaveIndicator("Saved");
+                }
+            };
+        }
+
+        setupWebSocket();
+
+        function debounce(func, wait) {
+            return function(...args) {
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        function sendUpdate(isSave = false) {
+            const currentContent = { title: titleInput.value, content: easymde.value() };
+            if (ws.readyState === WebSocket.OPEN) {
+                isLocalUpdate = true;
+                ws.send(JSON.stringify({ 
+                    type: isSave ? "save" : "update", 
+                    ...currentContent 
+                }));
+                setTimeout(() => { isLocalUpdate = false; }, 50); // Reset after a short delay
+                if (!isSave) {
+                    updateSaveIndicator("Editing...");
+                }
+            } else {
+                console.log('WebSocket is not open. Attempting to reconnect...');
+                updateSaveIndicator("Reconnecting...");
+                setupWebSocket();
+            }
+        }
+
+        const debouncedSave = debounce(() => {
+            sendUpdate(true);
+            updateSaveIndicator("Saving...");
+        }, 2000); // 2 seconds delay for saving
+
+        titleInput.addEventListener("input", () => {
+            sendUpdate();
+            debouncedSave();
+        });
+
+        easymde.codemirror.on("change", () => {
+            sendUpdate();
+            debouncedSave();
+        });
+
+        // Initial save indicator
+        updateSaveIndicator("Connected");
+
+        // Check for saved dark mode preference
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.documentElement.classList.add('dark');
+            document.getElementById('sun-icon').classList.add('hidden');
+            document.getElementById('moon-icon').classList.remove('hidden');
+        }
+    })();
+</script>
+        
+    }
+}
