@@ -102,7 +102,7 @@ templ DocumentPage(document models.Document) {
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css" />
         
 
-        <script>
+      <script>
     function toggleDarkMode() {
         const html = document.documentElement;
         const sunIcon = document.getElementById('sun-icon');
@@ -144,13 +144,12 @@ templ DocumentPage(document models.Document) {
         let lastSavedContent = { title: titleInput.value, content: contentInput.value };
         let ws;
         let isLocalUpdate = false;
+        let updateSequence = 0;
 
         const easymde = new EasyMDE({
             element: contentInput,
             spellChecker: false,
-            autosave: {
-                enabled: false
-            },
+            autosave: { enabled: false },
             toolbar: false,
             status: false,
             placeholder: "Start typing here...",
@@ -174,7 +173,7 @@ templ DocumentPage(document models.Document) {
             ws.onclose = function(e) {
                 console.log('WebSocket connection closed:', e.reason);
                 updateSaveIndicator("Disconnected");
-                setTimeout(setupWebSocket, 1000); // Attempt to reconnect after 1 second
+                setTimeout(setupWebSocket, 1000);
             };
 
             ws.onerror = function(err) {
@@ -185,13 +184,22 @@ templ DocumentPage(document models.Document) {
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
                 if (data.type === "update" && !isLocalUpdate) {
-                    titleInput.value = data.title;
-                    if (data.content !== easymde.value()) {
-                        easymde.value(data.content);
-                    }
-                    updateSaveIndicator("Updated from server");
+                    updateContent(data);
                 }
             };
+        }
+
+        function updateContent(data) {
+            const currentCursor = easymde.codemirror.getCursor();
+            const scrollInfo = easymde.codemirror.getScrollInfo();
+
+            titleInput.value = data.title;
+            easymde.value(data.content);
+
+            easymde.codemirror.setCursor(currentCursor);
+            easymde.codemirror.scrollTo(scrollInfo.left, scrollInfo.top);
+
+            updateSaveIndicator("Updated from server");
         }
 
         setupWebSocket();
@@ -210,9 +218,10 @@ templ DocumentPage(document models.Document) {
                 ws.send(JSON.stringify({ 
                     type: isSave ? "save" : "update", 
                     title: currentContent.title,
-                    content: currentContent.content
+                    content: currentContent.content,
+                    sequence: ++updateSequence
                 }));
-                setTimeout(() => { isLocalUpdate = false; }, 50); // Reset after a short delay
+                setTimeout(() => { isLocalUpdate = false; }, 50);
                 updateSaveIndicator(isSave ? "Saving..." : "Updating...");
             } else {
                 console.log('WebSocket is not open. Attempting to reconnect...');
@@ -223,7 +232,7 @@ templ DocumentPage(document models.Document) {
 
         const debouncedSave = debounce(() => {
             sendUpdate(true);
-        }, 2000); // 2 seconds delay for saving
+        }, 2000);
 
         titleInput.addEventListener("input", () => {
             sendUpdate();
@@ -235,7 +244,6 @@ templ DocumentPage(document models.Document) {
             debouncedSave();
         });
 
-        // Initial save indicator
         updateSaveIndicator("Connected");
 
         // Check for saved dark mode preference
@@ -246,6 +254,7 @@ templ DocumentPage(document models.Document) {
         }
     })();
 </script>
+      
         
         
     }
