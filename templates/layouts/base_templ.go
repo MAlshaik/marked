@@ -26,7 +26,7 @@ func Base() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Marked</title><link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap\" rel=\"stylesheet\"><link href=\"/static/css/output.css\" rel=\"stylesheet\"><script src=\"https://unpkg.com/htmx.org@1.9.10\"></script><style>\n                body {\n                    font-family: 'Inter', sans-serif;\n                }\n            </style></head><body class=\"bg-background text-foreground min-h-screen\"><div class=\"container mx-auto\"><div class=\"w-full flex justify-between items-center py-4\"></div>")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString("<html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Marked</title><link rel=\"icon\" type=\"image/x-icon\" href=\"/static/marked.ico\"><link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap\" rel=\"stylesheet\"><link href=\"/static/css/output.css\" rel=\"stylesheet\"><script src=\"https://unpkg.com/htmx.org@1.9.10\"></script><style>\n                body {\n                    font-family: 'Inter', sans-serif;\n                }\n            </style></head><body class=\"bg-background text-foreground min-h-screen\"><div class=\"container mx-auto\"><div class=\"w-full flex justify-between items-center py-4\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
